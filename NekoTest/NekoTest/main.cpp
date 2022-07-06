@@ -116,6 +116,9 @@ int main()
 	driver.ReadMemory(module1, largeBuffer, 20);
 	PrintHex(largeBuffer->Buffer, 20);
 
+	printf("Waiting...\n");
+	Sleep(3000);
+
 	printf("Multi-thread test...\n");
 	for (int i = 0; i < 5; i++)
 	{

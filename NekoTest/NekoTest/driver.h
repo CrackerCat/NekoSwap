@@ -24,6 +24,9 @@ typedef enum _MEMORY_INFORMATION_CLASS
 
 extern "C" NTSTATUS NTAPI NtQueryVirtualMemory(HANDLE ProcessHandle, PVOID BaseAddress, MEMORY_INFORMATION_CLASS MemoryInformationClass, PVOID MemoryInformation, SIZE_T MemoryInformationLength, PSIZE_T ReturnLength);
 
+#define MAX_VIRTUAL_USERMODE 0x7FFFFFFFFFFF
+#define MIN_VIRTUAL_USERMODE 0x10000
+
 class NekoControl
 {
 private:
@@ -33,6 +36,17 @@ private:
 
 	DWORD64(__stdcall* PsLookupProcessByProcessId)(HANDLE processId, void** process) = nullptr;
 	DWORD64(__stdcall* MmCopyVirtualMemory)(PVOID sourceProcess, PVOID sourceAddress, PVOID targetProcess, PVOID targetAddress, SIZE_T bufferSize, CCHAR previousMode, PSIZE_T returnSize) = nullptr;
+
+	bool CheckAddress(PVOID address)
+	{
+		if (reinterpret_cast<DWORD64>(address) > MAX_VIRTUAL_USERMODE)
+			return false;
+
+		if (reinterpret_cast<DWORD64>(address) < MIN_VIRTUAL_USERMODE)
+			return false;
+
+		return true;
+	}
 public:
 	void Init()
 	{
@@ -87,6 +101,12 @@ public:
 
 	bool ReadMemory(PVOID source, PVOID destination, SIZE_T size)
 	{
+		if (!CheckAddress(source))
+			return false;
+
+		if (!CheckAddress(destination))
+			return false;
+
 		SIZE_T bytesCopied;
 		DWORD64 status = MmCopyVirtualMemory(targetProcess, source, currentProcess, destination, size, 0 /* KernelMode */, &bytesCopied);
 		return status == 0;
@@ -94,6 +114,12 @@ public:
 
 	bool WriteMemory(PVOID source, PVOID destination, SIZE_T size)
 	{
+		if (!CheckAddress(source))
+			return false;
+
+		if (!CheckAddress(destination))
+			return false;
+
 		SIZE_T bytesCopied;
 		DWORD64 status = MmCopyVirtualMemory(currentProcess, source, targetProcess, destination, size, 0, &bytesCopied);
 		return status == 0;

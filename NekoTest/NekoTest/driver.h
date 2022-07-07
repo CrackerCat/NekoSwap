@@ -1,6 +1,11 @@
 #ifndef NEKO_CONTROL_H
 #define NEKO_CONTROL_H
 
+/*
+ * WARNING
+ * Disable Control Flow Guard and Security Check
+ */
+
 #include <Windows.h>
 #include <winternl.h>
 #include <thread>
@@ -34,8 +39,10 @@ private:
 	PVOID currentProcess;
 	PVOID targetProcess;
 
-	DWORD64(__stdcall* PsLookupProcessByProcessId)(HANDLE processId, void** process) = nullptr;
-	DWORD64(__stdcall* MmCopyVirtualMemory)(PVOID sourceProcess, PVOID sourceAddress, PVOID targetProcess, PVOID targetAddress, SIZE_T bufferSize, CCHAR previousMode, PSIZE_T returnSize) = nullptr;
+	typedef DWORD64(__stdcall* PsLookupProcessByProcessId_t)(HANDLE processId, void** process);
+	volatile PsLookupProcessByProcessId_t PsLookupProcessByProcessId = nullptr;
+	typedef DWORD64(__stdcall* MmCopyVirtualMemory_t)(PVOID sourceProcess, PVOID sourceAddress, PVOID targetProcess, PVOID targetAddress, SIZE_T bufferSize, CCHAR previousMode, PSIZE_T returnSize);
+	volatile MmCopyVirtualMemory_t MmCopyVirtualMemory = nullptr;
 
 	bool CheckAddress(PVOID address)
 	{
@@ -50,11 +57,19 @@ private:
 public:
 	void Init()
 	{
+		// if not loaded, the syscalls will literally shit itself
+		HMODULE userModule = LoadLibraryA("user32.dll");
+		if (!userModule)
+			return;
+		printf("user32.dll: 0x%p\n", userModule);
+
 		HMODULE targetModule = LoadLibraryA("win32u.dll");
+		if (!targetModule)
+			return;
 		printf("win32u.dll: 0x%p\n", targetModule);
 
-		*reinterpret_cast<void**>(&PsLookupProcessByProcessId) = GetProcAddress(targetModule, "NtUserSetGestureConfig");
-		*reinterpret_cast<void**>(&MmCopyVirtualMemory) = GetProcAddress(targetModule, "NtUserSetSensorPresence");
+		PsLookupProcessByProcessId = reinterpret_cast<PsLookupProcessByProcessId_t>(GetProcAddress(targetModule, "NtUserSetGestureConfig"));
+		MmCopyVirtualMemory = reinterpret_cast<MmCopyVirtualMemory_t>(GetProcAddress(targetModule, "NtUserSetSensorPresence"));
 
 		if (PsLookupProcessByProcessId == nullptr || MmCopyVirtualMemory == nullptr)
 		{
@@ -63,15 +78,13 @@ public:
 			return;
 		}
 
-		// no printf no work???
-		// volatile is missing somewhere i guess
 		printf("NtUserSetGestureConfig: 0x%p\n", PsLookupProcessByProcessId);
 		printf("NtUserSetSensorPresence: 0x%p\n", MmCopyVirtualMemory);
 
 		DWORD64 status = PsLookupProcessByProcessId(reinterpret_cast<HANDLE>(GetCurrentProcessId()), &currentProcess);
 		if (status != 0)
 		{
-			printf("Failed to get current process EPROCESS (0x%p)!\n", status);
+			printf("Failed to get current process EPROCESS (0x%p)!\n", reinterpret_cast<PVOID>(status));
 			getchar();
 			return;
 		}
@@ -86,7 +99,7 @@ public:
 		DWORD64 status = PsLookupProcessByProcessId(targetProcessPid, &targetProcess);
 		if (status != 0)
 		{
-			printf("Failed to get target process EPROCESS (0x%p)!\n", status);
+			printf("Failed to get target process EPROCESS (0x%p)!\n", reinterpret_cast<PVOID>(status));
 			getchar();
 			return;
 		}
@@ -107,6 +120,8 @@ public:
 		if (!CheckAddress(destination))
 			return false;
 
+		printf("ReadMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n", targetProcess, source, currentProcess, destination, size);
+
 		SIZE_T bytesCopied;
 		DWORD64 status = MmCopyVirtualMemory(targetProcess, source, currentProcess, destination, size, 0 /* KernelMode */, &bytesCopied);
 		return status == 0;
@@ -120,6 +135,8 @@ public:
 		if (!CheckAddress(destination))
 			return false;
 
+		printf("WriteMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n", targetProcess, source, currentProcess, destination, size);
+
 		SIZE_T bytesCopied;
 		DWORD64 status = MmCopyVirtualMemory(currentProcess, source, targetProcess, destination, size, 0, &bytesCopied);
 		return status == 0;
@@ -127,7 +144,7 @@ public:
 
 	PVOID GetModule(const wchar_t* moduleName)
 	{
-		HANDLE targetProcessHandle = OpenProcess(PROCESS_QUERY_INFORMATION, 0, reinterpret_cast<DWORD>(targetProcessPid));
+		HANDLE targetProcessHandle = OpenProcess(PROCESS_QUERY_INFORMATION, 0, *reinterpret_cast<DWORD*>(&targetProcessPid));
 		if (!targetProcessHandle || targetProcessHandle == INVALID_HANDLE_VALUE)
 			return nullptr;
 

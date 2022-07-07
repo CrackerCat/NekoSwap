@@ -108,7 +108,7 @@ int main()
 	printf("user32.dll: 0x%p\n", module2);
 
 	printf("Waiting...\n");
-	Sleep(3000);
+	Sleep(100);
 
 	LargeBuffer* largeBuffer = static_cast<LargeBuffer*>(malloc(sizeof(LargeBuffer)));
 	printf("Short read test...\n");
@@ -116,8 +116,9 @@ int main()
 	driver.ReadMemory(module1, largeBuffer, 20);
 	PrintHex(largeBuffer->Buffer, 20);
 
-	printf("Waiting...\n");
-	Sleep(3000);
+	printf("Press key to continue\n");
+	getchar();
+	Sleep(1000);
 
 	printf("Multi-thread test...\n");
 	for (int i = 0; i < 5; i++)

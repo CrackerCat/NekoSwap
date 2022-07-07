@@ -9,6 +9,12 @@ DWORD64* GetFunctionFromTable(DWORD64 tableEntry, Defines::TableList tableIndex,
 	return functionPointer;
 }
 
+NTSTATUS TestMmCopyVirtualMemory(PEPROCESS sourceProcess, PVOID sourceAddress, PEPROCESS targetProcess, PVOID targetAddress, SIZE_T bufferSize, KPROCESSOR_MODE previousMode, PSIZE_T returnSize)
+{
+	DbgPrintEx(0, 0, "[NekoSwap] sourceProcess: 0x%p sourceAddress:0x%p targetProcess: 0x%p targetAddress: 0x%p bufferSize: %llu previousMode: %i returnSize: 0x%p\n", sourceProcess, sourceAddress, targetProcess, targetAddress, bufferSize, (int)previousMode, returnSize);
+	return STATUS_SUCCESS;
+}
+
 NTSTATUS EntryPoint()
 {
 	PROTECT_ULTRA();
@@ -31,7 +37,8 @@ NTSTATUS EntryPoint()
 	*functionNtUserSetGestureConfig = reinterpret_cast<DWORD64>(&PsLookupProcessByProcessId);
 
 	DWORD64* functionNtUserSetSensorPresence = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetSensorPresence);
-	*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&Utils::MmCopyVirtualMemory);
+	//*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&Utils::MmCopyVirtualMemory);
+	*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&TestMmCopyVirtualMemory);
 
 	// TODO: disable APCs
 	// TODO: registry check

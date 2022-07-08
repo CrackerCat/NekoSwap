@@ -1,6 +1,14 @@
 #include "global.h"
 
-DWORD64* GetFunctionFromTable(DWORD64 tableEntry, Defines::TableList tableIndex, Defines::FunctionList functionIndex)
+/*
+ * WARNING
+ * Windows implementation of syscalls is not passing the entire stack
+ * to the kernel. Only the given amount of argument. Always verify that
+ * the original function has enough arguments or you will be getting
+ * garbage (5+ arg is passed on stack).
+ */
+
+DWORD64* GetFunctionFromTable(DWORD64 tableEntry, int tableIndex, int functionIndex)
 {
 	PROTECT_ULTRA();
 	DWORD64 functionTable = *reinterpret_cast<DWORD64*>(tableEntry + (tableIndex * sizeof(DWORD64)));
@@ -9,9 +17,10 @@ DWORD64* GetFunctionFromTable(DWORD64 tableEntry, Defines::TableList tableIndex,
 	return functionPointer;
 }
 
-NTSTATUS TestMmCopyVirtualMemory(PEPROCESS sourceProcess, PVOID sourceAddress, PEPROCESS targetProcess, PVOID targetAddress, SIZE_T bufferSize, KPROCESSOR_MODE previousMode, PSIZE_T returnSize)
+NTSTATUS TestCallback(PVOID arg1, PVOID arg2, PVOID arg3, PVOID arg4, PVOID arg5, PVOID arg6, PVOID arg7)
 {
-	DbgPrintEx(0, 0, "[NekoSwap] sourceProcess: 0x%p sourceAddress:0x%p targetProcess: 0x%p targetAddress: 0x%p bufferSize: %llu previousMode: %i returnSize: 0x%p\n", sourceProcess, sourceAddress, targetProcess, targetAddress, bufferSize, (int)previousMode, returnSize);
+	//__debugbreak();
+	DbgPrintEx(0, 0, "arg1: 0x%p arg2: 0x%p arg3: 0x%p arg4: 0x%p arg5: 0x%p arg6: 0x%p arg7: 0x%p\n", arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 	return STATUS_SUCCESS;
 }
 
@@ -36,9 +45,10 @@ NTSTATUS EntryPoint()
 	DWORD64* functionNtUserSetGestureConfig = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetGestureConfig);
 	*functionNtUserSetGestureConfig = reinterpret_cast<DWORD64>(&PsLookupProcessByProcessId);
 
-	DWORD64* functionNtUserSetSensorPresence = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetSensorPresence);
-	//*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&Utils::MmCopyVirtualMemory);
-	*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&TestMmCopyVirtualMemory);
+	//DWORD64* functionNtUserSetSensorPresence = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetSensorPresence);
+	DWORD64* functionNtUserSetSensorPresence = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserDrawCaptionTemp);
+	*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&Utils::MmCopyVirtualMemory);
+	//*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&TestCallback);
 
 	// TODO: disable APCs
 	// TODO: registry check

@@ -11,6 +11,9 @@
 #include <thread>
 
 #pragma warning(disable : 4312)
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4311)
+#pragma warning(disable : 4302)
 
 typedef enum _MEMORY_INFORMATION_CLASS
 {
@@ -38,10 +41,11 @@ private:
 	HANDLE targetProcessPid;
 	PVOID currentProcess;
 	PVOID targetProcess;
+	PVOID returnSizeBuffer;
 
 	typedef DWORD64(__stdcall* PsLookupProcessByProcessId_t)(HANDLE processId, void** process);
 	volatile PsLookupProcessByProcessId_t PsLookupProcessByProcessId = nullptr;
-	typedef DWORD64(__stdcall* MmCopyVirtualMemory_t)(PVOID sourceProcess, PVOID sourceAddress, PVOID targetProcess, PVOID targetAddress, SIZE_T bufferSize, CCHAR previousMode, PSIZE_T returnSize);
+	typedef DWORD64(__stdcall* MmCopyVirtualMemory_t)(PVOID sourceProcess, PVOID sourceAddress, PVOID targetProcess, PVOID targetAddress, SIZE_T bufferSize, CCHAR previousMode, PVOID returnSize);
 	volatile MmCopyVirtualMemory_t MmCopyVirtualMemory = nullptr;
 
 	bool CheckAddress(PVOID address)
@@ -69,7 +73,7 @@ public:
 		printf("win32u.dll: 0x%p\n", targetModule);
 
 		PsLookupProcessByProcessId = reinterpret_cast<PsLookupProcessByProcessId_t>(GetProcAddress(targetModule, "NtUserSetGestureConfig"));
-		MmCopyVirtualMemory = reinterpret_cast<MmCopyVirtualMemory_t>(GetProcAddress(targetModule, "NtUserSetSensorPresence"));
+		MmCopyVirtualMemory = reinterpret_cast<MmCopyVirtualMemory_t>(GetProcAddress(targetModule, "NtUserDrawCaptionTemp"));
 
 		if (PsLookupProcessByProcessId == nullptr || MmCopyVirtualMemory == nullptr)
 		{
@@ -90,6 +94,25 @@ public:
 		}
 
 		printf("Client EPROCESS: 0x%p\n", currentProcess);
+
+		// the parameter that passes the return size parameter copied only 4 bytes
+		// so it has to be someone in the 32bit integer region
+		returnSizeBuffer = VirtualAlloc(reinterpret_cast<PVOID>(0x100000), 8, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		if (!returnSizeBuffer)
+		{
+			printf("Failed to allocate memory for return buffer!\n");
+			getchar();
+			return;
+		}
+
+		if (reinterpret_cast<DWORD64>(returnSizeBuffer) + 8 > UINT32_MAX)
+		{
+			printf("Return buffer memory allocated too high!\n");
+			getchar();
+			return;
+		}
+
+		printf("Return buffer: 0x%p\n", returnSizeBuffer);
 	}
 
 	void SetTarget(HANDLE pid)
@@ -120,10 +143,8 @@ public:
 		if (!CheckAddress(destination))
 			return false;
 
-		printf("ReadMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n", targetProcess, source, currentProcess, destination, size);
-
-		SIZE_T bytesCopied;
-		DWORD64 status = MmCopyVirtualMemory(targetProcess, source, currentProcess, destination, size, 0 /* KernelMode */, &bytesCopied);
+		printf("ReadMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n\tbytesCopied: 0x%p\n", targetProcess, source, currentProcess, destination, size, returnSizeBuffer);
+		DWORD64 status = MmCopyVirtualMemory(targetProcess, source, currentProcess, destination, size, 0 /* KernelMode */, returnSizeBuffer);
 		return status == 0;
 	}
 
@@ -137,8 +158,7 @@ public:
 
 		printf("WriteMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n", targetProcess, source, currentProcess, destination, size);
 
-		SIZE_T bytesCopied;
-		DWORD64 status = MmCopyVirtualMemory(currentProcess, source, targetProcess, destination, size, 0, &bytesCopied);
+		DWORD64 status = MmCopyVirtualMemory(currentProcess, source, targetProcess, destination, size, 0, returnSizeBuffer);
 		return status == 0;
 	}
 

@@ -3,7 +3,7 @@
 namespace Defines
 {
 	// win32k!ext_ms_win_core_win32k_fulluser_l1
-	enum FunctionList
+	enum FullUserFunctionList
 	{
 		NtUserAcquireIAMKey,
 		NtUserAcquireInteractiveControlBackgroundAccess,
@@ -442,6 +442,57 @@ namespace Defines
 		NtUserWindowFromPoint,
 		NtUserWOWCleanup,
 		NtUserYieldTask
+	};
+
+	enum InputFunctionList
+	{
+		NtCloseCompositionInputSink,
+		NtCompositionInputThread,
+		NtCompositionSetDropTarget,
+		NtConfigureInputSpace,
+		NtInputSpaceRegionFromPoint,
+		NtCreateCompositionInputSink,
+		NtCreateImplicitCompositionInputSink,
+		NtDuplicateCompositionInputSink,
+		NtEnableOneCoreTransformMode,
+		NtIsOneCoreTransformMode,
+		NtQueryCompositionInputIsImplicit,
+		NtQueryCompositionInputQueueAndTransform,
+		NtQueryCompositionInputSink,
+		NtQueryCompositionInputSinkLuid,
+		NtQueryCompositionInputSinkViewId,
+		NtSetCursorInputSpace,
+		NtSetPointerDeviceInputSpace,
+		NtSetShellCursorState,
+		NtUpdateInputSinkTransforms,
+		NtUserCreatePalmRejectionDelayZone,
+		NtUserDestroyPalmRejectionDelayZone,
+		NtUserEnableTouchPad,
+		NtUserGetAsyncKeyState,
+		NtUserEnableMouseInPointer,
+		NtUserIsMouseInPointerEnabled,
+		NtUserGetInputContainerId,
+		NtUserGetKeyboardLayout,
+		NtUserGetKeyboardLayoutList,
+		NtUserGetKeyboardState,
+		NtUserGetKeyState,
+		NtUserInitializeGenericHidInjection,
+		NtUserInitializeInputDeviceInjection,
+		NtUserInitializePointerDeviceInjection,
+		NtUserInitializePointerDeviceInjectionEx,
+		NtUserInjectDeviceInput,
+		NtUserInjectGenericHidInput,
+		NtUserInjectKeyboardInput,
+		NtUserInjectMouseInput,
+		NtUserInjectPointerInput,
+		NtUserLoadKeyboardLayoutEx,
+		NtUserLockCursor,
+		NtUserRemoveInjectionDevice,
+		NtUserSetFeatureReportResponse,
+		NtUserSetManipulationInputTarget,
+		NtUserSetPrecisionTouchPadConfiguration,
+		NtUserUnloadKeyboardLayout,
+		NtUserSetDesktopVisualInputSink
 	};
 
 	enum TableList

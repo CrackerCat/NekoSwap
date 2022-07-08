@@ -83,7 +83,7 @@ public:
 		}
 
 		printf("NtUserSetGestureConfig: 0x%p\n", PsLookupProcessByProcessId);
-		printf("NtUserSetSensorPresence: 0x%p\n", MmCopyVirtualMemory);
+		printf("NtUserDrawCaptionTemp: 0x%p\n", MmCopyVirtualMemory);
 
 		DWORD64 status = PsLookupProcessByProcessId(reinterpret_cast<HANDLE>(GetCurrentProcessId()), &currentProcess);
 		if (status != 0)
@@ -143,7 +143,7 @@ public:
 		if (!CheckAddress(destination))
 			return false;
 
-		printf("ReadMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n\tbytesCopied: 0x%p\n", targetProcess, source, currentProcess, destination, size, returnSizeBuffer);
+		//printf("ReadMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n\tbytesCopied: 0x%p\n", targetProcess, source, currentProcess, destination, size, returnSizeBuffer);
 		DWORD64 status = MmCopyVirtualMemory(targetProcess, source, currentProcess, destination, size, 0 /* KernelMode */, returnSizeBuffer);
 		return status == 0;
 	}
@@ -156,8 +156,7 @@ public:
 		if (!CheckAddress(destination))
 			return false;
 
-		printf("WriteMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n", targetProcess, source, currentProcess, destination, size);
-
+		//printf("WriteMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n", targetProcess, source, currentProcess, destination, size);
 		DWORD64 status = MmCopyVirtualMemory(currentProcess, source, targetProcess, destination, size, 0, returnSizeBuffer);
 		return status == 0;
 	}

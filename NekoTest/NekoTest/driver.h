@@ -41,8 +41,10 @@ private:
 	HANDLE targetProcessPid;
 	PVOID currentProcess;
 	PVOID targetProcess;
-	PVOID returnSizeBuffer;
+	PVOID kernelMemory;
 
+	typedef PVOID(__stdcall* ExAllocatePool_t)(DWORD64 PoolType, SIZE_T NumberOfBytes);
+	volatile ExAllocatePool_t ExAllocatePool = nullptr;
 	typedef DWORD64(__stdcall* PsLookupProcessByProcessId_t)(HANDLE processId, void** process);
 	volatile PsLookupProcessByProcessId_t PsLookupProcessByProcessId = nullptr;
 	typedef DWORD64(__stdcall* MmCopyVirtualMemory_t)(PVOID sourceProcess, PVOID sourceAddress, PVOID targetProcess, PVOID targetAddress, SIZE_T bufferSize, CCHAR previousMode, PVOID returnSize);
@@ -73,9 +75,12 @@ public:
 		printf("win32u.dll: 0x%p\n", targetModule);
 
 		PsLookupProcessByProcessId = reinterpret_cast<PsLookupProcessByProcessId_t>(GetProcAddress(targetModule, "NtUserSetGestureConfig"));
-		MmCopyVirtualMemory = reinterpret_cast<MmCopyVirtualMemory_t>(GetProcAddress(targetModule, "NtUserDrawCaptionTemp"));
+		ExAllocatePool = reinterpret_cast<ExAllocatePool_t>(GetProcAddress(targetModule, "NtUserSetSensorPresence"));
+		MmCopyVirtualMemory = reinterpret_cast<MmCopyVirtualMemory_t>(GetProcAddress(targetModule, "NtGdiGetEmbUFI"));
 
-		if (PsLookupProcessByProcessId == nullptr || MmCopyVirtualMemory == nullptr)
+		if (!PsLookupProcessByProcessId
+			|| !MmCopyVirtualMemory
+			|| !ExAllocatePool)
 		{
 			printf("Failed to resolve functions!\n");
 			getchar();
@@ -83,7 +88,7 @@ public:
 		}
 
 		printf("NtUserSetGestureConfig: 0x%p\n", PsLookupProcessByProcessId);
-		printf("NtUserDrawCaptionTemp: 0x%p\n", MmCopyVirtualMemory);
+		printf("NtGdiGetEmbUFI: 0x%p\n", MmCopyVirtualMemory);
 
 		DWORD64 status = PsLookupProcessByProcessId(reinterpret_cast<HANDLE>(GetCurrentProcessId()), &currentProcess);
 		if (status != 0)
@@ -95,24 +100,15 @@ public:
 
 		printf("Client EPROCESS: 0x%p\n", currentProcess);
 
-		// the parameter that passes the return size parameter copied only 4 bytes
-		// so it has to be someone in the 32bit integer region
-		returnSizeBuffer = VirtualAlloc(reinterpret_cast<PVOID>(0x100000), 8, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		if (!returnSizeBuffer)
+		kernelMemory = ExAllocatePool(0, 128);
+		if (!kernelMemory)
 		{
-			printf("Failed to allocate memory for return buffer!\n");
+			printf("Failed to allocate non paged memory!\n");
 			getchar();
 			return;
 		}
 
-		if (reinterpret_cast<DWORD64>(returnSizeBuffer) + 8 > UINT32_MAX)
-		{
-			printf("Return buffer memory allocated too high!\n");
-			getchar();
-			return;
-		}
-
-		printf("Return buffer: 0x%p\n", returnSizeBuffer);
+		printf("Non paged memory: 0x%p\n", kernelMemory);
 	}
 
 	void SetTarget(HANDLE pid)
@@ -143,8 +139,8 @@ public:
 		if (!CheckAddress(destination))
 			return false;
 
-		//printf("ReadMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n\tbytesCopied: 0x%p\n", targetProcess, source, currentProcess, destination, size, returnSizeBuffer);
-		DWORD64 status = MmCopyVirtualMemory(targetProcess, source, currentProcess, destination, size, 0 /* KernelMode */, returnSizeBuffer);
+		//printf("ReadMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n", targetProcess, source, currentProcess, destination, size);
+		DWORD64 status = MmCopyVirtualMemory(targetProcess, source, currentProcess, destination, size, 0 /* KernelMode */, kernelMemory);
 		return status == 0;
 	}
 
@@ -157,7 +153,7 @@ public:
 			return false;
 
 		//printf("WriteMemory:\n\ttargetProcess: 0x%p\n\tsource: 0x%p\n\tcurrentProcess: 0x%p\n\tdestination: 0x%p\n\tsize: %llu\n", targetProcess, source, currentProcess, destination, size);
-		DWORD64 status = MmCopyVirtualMemory(currentProcess, source, targetProcess, destination, size, 0, returnSizeBuffer);
+		DWORD64 status = MmCopyVirtualMemory(currentProcess, source, targetProcess, destination, size, 0, kernelMemory);
 		return status == 0;
 	}
 

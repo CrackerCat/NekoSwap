@@ -45,14 +45,16 @@ NTSTATUS EntryPoint()
 	DWORD64* functionNtUserSetGestureConfig = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetGestureConfig);
 	*functionNtUserSetGestureConfig = reinterpret_cast<DWORD64>(&PsLookupProcessByProcessId);
 
-	//DWORD64* functionNtUserSetSensorPresence = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetSensorPresence);
-	DWORD64* functionNtUserSetSensorPresence = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserDrawCaptionTemp);
-	*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&Utils::MmCopyVirtualMemory);
-	//*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&TestCallback);
+	DWORD64* functionNtUserSetSensorPresence = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetSensorPresence);
+	*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&ExAllocatePool);
+
+	// __int64 __fastcall NtGdiGetEmbUFI(HDC a1, _QWORD *a2, char *a3, _BYTE *a4, __int64 a5, __int64 a6, __int64 a7)
+	DWORD64* functionNtGdiGetEmbUFI = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fullgdi_l1, Defines::NtGdiGetEmbUFI);
+	*functionNtGdiGetEmbUFI = reinterpret_cast<DWORD64>(&Utils::MmCopyVirtualMemory);
+	//*functionNtGdiGetEmbUFI = reinterpret_cast<DWORD64>(&TestCallback);
 
 	// TODO: disable APCs
 	// TODO: registry check
-
 	PROTECT_END();
 	return STATUS_SUCCESS;
 }

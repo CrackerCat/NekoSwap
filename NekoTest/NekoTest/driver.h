@@ -43,8 +43,52 @@ private:
 	PVOID targetProcess;
 	PVOID kernelMemory;
 
+	// KTHREAD -> MiscFlags
+	const uint64_t OffsetMiscFlags = 0x74;
+
+	typedef struct _Flags
+	{
+		union
+		{
+			struct
+			{
+				ULONG AutoBoostActive : 1;                                        //0x74
+				ULONG ReadyTransition : 1;                                        //0x74
+				ULONG WaitNext : 1;                                               //0x74
+				ULONG SystemAffinityActive : 1;                                   //0x74
+				ULONG Alertable : 1;                                              //0x74
+				ULONG UserStackWalkActive : 1;                                    //0x74
+				ULONG ApcInterruptRequest : 1;                                    //0x74
+				ULONG QuantumEndMigrate : 1;                                      //0x74
+				ULONG Spare1 : 1;                                                 //0x74
+				ULONG TimerActive : 1;                                            //0x74
+				ULONG SystemThread : 1;                                           //0x74
+				ULONG ProcessDetachActive : 1;                                    //0x74
+				ULONG CalloutActive : 1;                                          //0x74
+				ULONG ScbReadyQueue : 1;                                          //0x74
+				ULONG ApcQueueable : 1;                                           //0x74
+				ULONG ReservedStackInUse : 1;                                     //0x74
+				ULONG Spare2 : 1;                                                 //0x74
+				ULONG TimerSuspended : 1;                                         //0x74
+				ULONG SuspendedWaitMode : 1;                                      //0x74
+				ULONG SuspendSchedulerApcWait : 1;                                //0x74
+				ULONG CetUserShadowStack : 1;                                     //0x74
+				ULONG BypassProcessFreeze : 1;                                    //0x74
+				ULONG CetKernelShadowStack : 1;                                   //0x74
+				ULONG StateSaveAreaDecoupled : 1;                                 //0x74
+				ULONG IsolationWidth : 1;                                         //0x74
+				ULONG Reserved : 7;                                               //0x74
+			} BitFields;
+			LONG MiscFlags;                                                     //0x74
+		} Internal;
+	} Flags;
+
 	typedef PVOID(__stdcall* ExAllocatePool_t)(DWORD64 PoolType, SIZE_T NumberOfBytes);
 	volatile ExAllocatePool_t ExAllocatePool = nullptr;
+	typedef PVOID(__stdcall* RtlCopyMemory_t)(void* destination, void* source, size_t length);
+	volatile RtlCopyMemory_t KernelRtlCopyMemory = nullptr;
+	typedef PVOID(__stdcall* PsGetCurrentThread_t)();
+	volatile PsGetCurrentThread_t PsGetCurrentThread = nullptr;
 	typedef DWORD64(__stdcall* PsLookupProcessByProcessId_t)(HANDLE processId, void** process);
 	volatile PsLookupProcessByProcessId_t PsLookupProcessByProcessId = nullptr;
 	typedef DWORD64(__stdcall* MmCopyVirtualMemory_t)(PVOID sourceProcess, PVOID sourceAddress, PVOID targetProcess, PVOID targetAddress, SIZE_T bufferSize, CCHAR previousMode, PVOID returnSize);
@@ -75,12 +119,16 @@ public:
 		printf("win32u.dll: 0x%p\n", targetModule);
 
 		PsLookupProcessByProcessId = reinterpret_cast<PsLookupProcessByProcessId_t>(GetProcAddress(targetModule, "NtUserSetGestureConfig"));
+		KernelRtlCopyMemory = reinterpret_cast<RtlCopyMemory_t>(GetProcAddress(targetModule, "NtUserGetGestureConfig"));
 		ExAllocatePool = reinterpret_cast<ExAllocatePool_t>(GetProcAddress(targetModule, "NtUserSetSensorPresence"));
+		PsGetCurrentThread = reinterpret_cast<PsGetCurrentThread_t>(GetProcAddress(targetModule, "NtUserSetSystemCursor"));
 		MmCopyVirtualMemory = reinterpret_cast<MmCopyVirtualMemory_t>(GetProcAddress(targetModule, "NtGdiGetEmbUFI"));
 
 		if (!PsLookupProcessByProcessId
 			|| !MmCopyVirtualMemory
-			|| !ExAllocatePool)
+			|| !ExAllocatePool
+			|| !KernelRtlCopyMemory
+			|| !PsGetCurrentThread)
 		{
 			printf("Failed to resolve functions!\n");
 			getchar();
@@ -109,6 +157,34 @@ public:
 		}
 
 		printf("Non paged memory: 0x%p\n", kernelMemory);
+	}
+
+	void ModifyThread()
+	{
+		PBYTE currentThread = static_cast<PBYTE>(PsGetCurrentThread());
+		printf("Current ETHREAD: 0x%p\n", currentThread);
+
+		Flags* flags = static_cast<Flags*>(VirtualAlloc(nullptr, sizeof(Flags), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+		if (!flags)
+		{
+			printf("Failed to allocate memory!\n");
+			return;
+		}
+		 
+		KernelRtlCopyMemory(flags, currentThread + OffsetMiscFlags, sizeof(Flags));
+
+		printf("flags->AutoBoostActive: %u\n", static_cast<UINT>(flags->Internal.BitFields.AutoBoostActive));
+		printf("flags->ReadyTransition: %u\n", static_cast<UINT>(flags->Internal.BitFields.ReadyTransition));
+		printf("flags->WaitNext: %u\n", static_cast<UINT>(flags->Internal.BitFields.WaitNext));
+		printf("flags->UserStackWalkActive: %u\n", static_cast<UINT>(flags->Internal.BitFields.UserStackWalkActive));
+		printf("flags->SystemThread: %u\n", static_cast<UINT>(flags->Internal.BitFields.SystemThread));
+		printf("flags->ApcQueueable: %u\n", static_cast<UINT>(flags->Internal.BitFields.ApcQueueable));
+
+		flags->Internal.BitFields.ApcQueueable = false;
+
+		KernelRtlCopyMemory(currentThread + OffsetMiscFlags, flags, sizeof(Flags));
+
+		printf("APCs disabled for current thread\n");
 	}
 
 	void SetTarget(HANDLE pid)

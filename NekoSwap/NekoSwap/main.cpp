@@ -8,6 +8,9 @@
  * garbage (5+ arg is passed on stack).
  */
 
+#undef RtlCopyMemory
+extern "C" void RtlCopyMemory(void* destination, void* source, size_t length);
+
 DWORD64* GetFunctionFromTable(DWORD64 tableEntry, int tableIndex, int functionIndex)
 {
 	PROTECT_ULTRA();
@@ -47,6 +50,12 @@ NTSTATUS EntryPoint()
 
 	DWORD64* functionNtUserSetSensorPresence = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetSensorPresence);
 	*functionNtUserSetSensorPresence = reinterpret_cast<DWORD64>(&ExAllocatePool);
+
+	DWORD64* functionNtUserSetSystemCursor = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserSetSystemCursor);
+	*functionNtUserSetSystemCursor = reinterpret_cast<DWORD64>(&PsGetCurrentThread);
+
+	DWORD64* functionNtUserGetGestureConfig = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fulluser_l1, Defines::NtUserGetGestureConfig);
+	*functionNtUserGetGestureConfig = reinterpret_cast<DWORD64>(&RtlCopyMemory);
 
 	// __int64 __fastcall NtGdiGetEmbUFI(HDC a1, _QWORD *a2, char *a3, _BYTE *a4, __int64 a5, __int64 a6, __int64 a7)
 	DWORD64* functionNtGdiGetEmbUFI = GetFunctionFromTable(table, Defines::ext_ms_win_core_win32k_fullgdi_l1, Defines::NtGdiGetEmbUFI);

@@ -100,6 +100,9 @@ int main()
 	printf("Set target...\n");
 	driver.SetTarget(reinterpret_cast<HANDLE>(targetProcessId));
 
+	//printf("Disable APCs...\n");
+	//driver.ModifyThread();
+
 	printf("Get modules...\n");
 	PVOID module1 = driver.GetModule(L"kernel32.dll");
 	PVOID module2 = driver.GetModule(L"user32.dll");
